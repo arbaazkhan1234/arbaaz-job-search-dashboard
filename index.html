@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Arbaaz — Job Search Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   :root {
     --bg: #0f1117;
@@ -116,6 +117,61 @@
   .state-msg p { color: var(--muted); font-size: 13px; max-width: 400px; margin: 0 auto; }
   .state-msg.error h2 { color: #f87171; }
 
+  /* PDF RESUME TEMPLATE — hidden, only used during PDF generation */
+  #pdf-resume-template {
+    display: none;
+    font-family: 'Arial', sans-serif;
+    font-size: 11pt;
+    color: #111;
+    background: #fff;
+    padding: 36px 44px;
+    max-width: 750px;
+    line-height: 1.45;
+  }
+  #pdf-resume-template h1 {
+    font-size: 20pt;
+    font-weight: 700;
+    margin: 0 0 2px;
+    color: #111;
+    letter-spacing: 0.01em;
+  }
+  #pdf-resume-template .contact {
+    font-size: 9.5pt;
+    color: #444;
+    margin-bottom: 14px;
+    border-bottom: 1.5px solid #222;
+    padding-bottom: 8px;
+  }
+  #pdf-resume-template h2 {
+    font-size: 10.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid #bbb;
+    margin: 14px 0 6px;
+    padding-bottom: 2px;
+    color: #111;
+  }
+  #pdf-resume-template p {
+    margin: 0 0 6px;
+  }
+  #pdf-resume-template ul {
+    margin: 0 0 8px 18px;
+    padding: 0;
+  }
+  #pdf-resume-template li {
+    margin-bottom: 3px;
+  }
+  #pdf-resume-template .job-title {
+    font-weight: 700;
+    font-size: 10.5pt;
+  }
+  #pdf-resume-template .job-meta {
+    color: #555;
+    font-size: 9.5pt;
+    margin-bottom: 4px;
+  }
+
   /* MOBILE */
   @media (max-width: 640px) {
     .header, .stats, .controls, .table-wrap { padding-left: 16px; padding-right: 16px; }
@@ -132,6 +188,8 @@
 </style>
 </head>
 <body>
+
+<div id="pdf-resume-template"></div>
 
 <div class="header">
   <h1>Job Search — Command Center</h1>
@@ -328,8 +386,8 @@ function renderJob(job) {
         <div class="detail-content">${esc(job.tailored_resume)}</div>
        </div>` : '';
 
-  const resumeLink = job.tailored_resume_link
-    ? `<a class="btn" href="${esc(job.tailored_resume_link)}" target="_blank" rel="noopener">Download Resume ↗</a>` : '';
+  const resumeLink = job.tailored_resume
+    ? `<button class="btn" onclick="downloadResumePDF('${esc(job.id)}','${esc(job.company||'')}','${esc(job.role_title||'')}')">⬇ Download Resume PDF</button>` : '';
 
   const answersSection = job.draft_answers
     ? `<div class="detail-section">
@@ -419,6 +477,111 @@ document.getElementById('search').addEventListener('input', e => {
   searchQuery = e.target.value.trim();
   renderJobs();
 });
+
+// --- PDF GENERATION ---
+function parseResume(text) {
+  // Split into sections by markdown headings or ALL-CAPS section headers
+  const lines = text.split('\n');
+  let name = '', contact = '', sections = [];
+  let currentSection = null, currentContent = [];
+  let headerDone = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      if (currentContent.length) currentContent.push('');
+      continue;
+    }
+
+    // First non-empty line = name
+    if (!name) { name = line.replace(/^#+\s*/, ''); continue; }
+
+    // Second block = contact (until we hit a section heading)
+    const isHeading = /^#{1,3}\s/.test(line) ||
+      /^(PROFESSIONAL SUMMARY|CORE SKILLS|SKILLS|WORK EXPERIENCE|EXPERIENCE|PROJECTS|EDUCATION|CERTIFICATIONS|KEY PROJECTS)/i.test(line);
+
+    if (!headerDone && !isHeading) {
+      contact += (contact ? ' | ' : '') + line.replace(/^#+\s*/, '').replace(/\*\*/g, '');
+      continue;
+    }
+
+    if (isHeading) {
+      headerDone = true;
+      if (currentSection) sections.push({ title: currentSection, lines: currentContent });
+      currentSection = line.replace(/^#+\s*/, '').replace(/\*\*/g, '').toUpperCase().trim();
+      currentContent = [];
+    } else {
+      currentContent.push(line);
+    }
+  }
+  if (currentSection) sections.push({ title: currentSection, lines: currentContent });
+  return { name, contact, sections };
+}
+
+function formatSectionHTML(lines) {
+  let html = '';
+  let inList = false;
+  for (const line of lines) {
+    if (!line) {
+      if (inList) { html += '</ul>'; inList = false; }
+      continue;
+    }
+    // Bullet point
+    if (/^[-•*]\s/.test(line)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${line.replace(/^[-•*]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</li>`;
+    }
+    // Bold job title line (### heading or **text**)
+    else if (/^###\s/.test(line) || /^\*\*[^*]+\*\*$/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<div class="job-title">${line.replace(/^###\s*/, '').replace(/\*\*/g, '')}</div>`;
+    }
+    // Italic/meta line (company, dates)
+    else if (/^\*[^*]/.test(line) || /^_/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<div class="job-meta">${line.replace(/^\*+/, '').replace(/\*+$/, '').replace(/_/g, '')}</div>`;
+    }
+    else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<p>${line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+function downloadResumePDF(jobId, company, role) {
+  const job = allJobs.find(j => j.id === jobId);
+  if (!job || !job.tailored_resume) { alert('No tailored resume available for this job yet.'); return; }
+
+  const parsed = parseResume(job.tailored_resume);
+  const tpl = document.getElementById('pdf-resume-template');
+
+  let html = `<h1>${parsed.name || 'Muhammad Arbaaz Alam'}</h1>`;
+  html += `<div class="contact">${parsed.contact || '+92-302-6738563 | arbazrana440@gmail.com | linkedin.com/in/m-arbaaz-khan'}</div>`;
+
+  for (const sec of parsed.sections) {
+    if (!sec.lines.filter(l => l.trim()).length) continue;
+    html += `<h2>${sec.title}</h2>`;
+    html += formatSectionHTML(sec.lines);
+  }
+
+  tpl.style.display = 'block';
+  tpl.innerHTML = html;
+
+  const filename = `Arbaaz_Resume_${company.replace(/[^a-zA-Z0-9]/g,'_')}_${role.replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
+
+  html2pdf().set({
+    margin: 0,
+    filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(tpl).save().then(() => {
+    tpl.style.display = 'none';
+    tpl.innerHTML = '';
+  });
+}
 
 loadJobs();
 </script>
