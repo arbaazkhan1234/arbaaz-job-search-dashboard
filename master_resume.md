@@ -30,11 +30,11 @@ Full-stack engineer and product strategist with ~3-4 years of combined freelance
 
 ### Frontend Engineer
 **Fomi Art** (Remote)
-[VERIFY exact dates — placeholder: Mar 2026 – May 2026]
+Jan 2026 – Jun 2026
 
-- Worked as a frontend engineer on Fomi Art's core product: an AI-powered image, video, and music generation platform for end users.
-- Built and maintained React/Next.js frontend interfaces for AI generation workflows, integrating with backend generation pipelines and handling asynchronous job states (queued/generating/complete) in the UI.
-- [VERIFY — add 1-2 more specifics once confirmed: e.g. which generation flows, performance work, or design-system contributions you personally owned]
+- Engineered the entire frontend system for Fomi Art's core product: an AI-powered image, video, and music generation platform for end users — owning the full React/Next.js codebase from architecture through delivery.
+- Built and integrated the complete API layer, designing and managing the API contracts between the frontend and backend generation pipelines, including handling asynchronous job states (queued/generating/complete) across all generation flows (image, video, music).
+- Owned the frontend end-to-end: component architecture, state management, API integration, and UI for all core generation workflows on the platform.
 
 ### Founder & Product Lead
 **ECHOAi** (Remote)
