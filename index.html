@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arbaaz — Job Search Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #161b27;
+    --surface2: #1e2535;
+    --border: #2a3347;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --high: #f59e0b;
+    --high-bg: rgba(245,158,11,0.08);
+    --medium: #6b8cba;
+    --medium-bg: rgba(107,140,186,0.08);
+    --low: #64748b;
+    --low-bg: rgba(100,116,139,0.08);
+    --applied: #22c55e;
+    --skipped: #475569;
+    --pending: #94a3b8;
+    --accent: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+  /* HEADER */
+  .header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
+  .header h1 { font-size: 16px; font-weight: 600; color: var(--text); letter-spacing: 0.02em; }
+  .header .subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* STATS */
+  .stats { display: flex; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; min-width: 120px; }
+  .stat .val { font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat.highlight .val { color: var(--high); }
+
+  /* CONTROLS */
+  .controls { display: flex; gap: 10px; padding: 14px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { background: var(--surface); border: 1px solid var(--border); color: var(--muted); padding: 5px 12px; border-radius: 20px; cursor: pointer; font-size: 12px; transition: all 0.15s; white-space: nowrap; }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .search-wrap { margin-left: auto; }
+  .search { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; width: 220px; outline: none; }
+  .search:focus { border-color: var(--accent); }
+  .search::placeholder { color: var(--muted); }
+
+  /* TABLE */
+  .table-wrap { padding: 0 24px 24px; }
+  .jobs-count { padding: 12px 0 8px; color: var(--muted); font-size: 12px; }
+
+  /* JOB ROW */
+  .job { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; overflow: hidden; transition: border-color 0.15s; position: relative; }
+  .job:hover { border-color: #3a4a66; }
+  .job.applied { opacity: 0.5; }
+  .job.skipped { opacity: 0.4; }
+  .job .priority-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+  .job .priority-bar.high { background: var(--high); }
+  .job .priority-bar.medium { background: var(--medium); }
+  .job .priority-bar.low { background: var(--low); }
+
+  .job-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px 12px 20px; cursor: pointer; }
+  .job-main { flex: 1; min-width: 0; }
+  .job-title { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .job-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .score-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 13px; font-weight: 700; color: var(--text); }
+  .score-badge.high { color: var(--high); border-color: rgba(245,158,11,0.3); }
+  .score-badge.medium { color: var(--medium); border-color: rgba(107,140,186,0.3); }
+  .priority-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .priority-tag.high { background: var(--high-bg); color: var(--high); }
+  .priority-tag.medium { background: var(--medium-bg); color: var(--medium); }
+  .priority-tag.low { background: var(--low-bg); color: var(--low); }
+  .status-tag { font-size: 11px; padding: 2px 7px; border-radius: 4px; }
+  .status-tag.applied { background: rgba(34,197,94,0.1); color: var(--applied); }
+  .status-tag.skipped { background: rgba(71,85,105,0.2); color: var(--skipped); }
+  .status-tag.expired { background: rgba(100,116,139,0.1); color: var(--muted); }
+  .why-fit { font-size: 12px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; }
+
+  /* SKILL TAGS */
+  .skill-tags { display: flex; gap: 4px; flex-wrap: wrap; padding: 0 16px 0 20px; margin-bottom: 10px; }
+  .skill-tag { font-size: 11px; padding: 2px 7px; border-radius: 4px; }
+  .skill-tag.matched { background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.2); }
+  .skill-tag.missing { background: rgba(239,68,68,0.08); color: #fca5a5; border: 1px solid rgba(239,68,68,0.15); }
+
+  /* EXPANDED */
+  .job-detail { display: none; border-top: 1px solid var(--border); padding: 16px 20px; }
+  .job.expanded .job-detail { display: block; }
+  .detail-section { margin-bottom: 16px; }
+  .detail-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
+  .detail-content { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; font-size: 12px; line-height: 1.7; color: #cbd5e1; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+  .detail-content.notes { background: rgba(245,158,11,0.04); border-color: rgba(245,158,11,0.2); color: #fcd34d; }
+  .score-breakdown { font-size: 12px; color: var(--muted); margin-bottom: 14px; font-family: monospace; }
+
+  /* ACTIONS */
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; background: var(--surface2); color: var(--text); }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #2563eb; }
+  .btn.success { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: var(--applied); }
+  .btn.success:hover { background: rgba(34,197,94,0.2); }
+  .btn.danger { background: rgba(100,116,139,0.1); border-color: rgba(100,116,139,0.3); color: var(--muted); }
+  .btn.danger:hover { background: rgba(100,116,139,0.2); color: var(--text); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .source-link { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  /* EMPTY / ERROR STATES */
+  .state-msg { text-align: center; padding: 60px 24px; }
+  .state-msg .icon { font-size: 32px; margin-bottom: 12px; }
+  .state-msg h2 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .state-msg p { color: var(--muted); font-size: 13px; max-width: 400px; margin: 0 auto; }
+  .state-msg.error h2 { color: #f87171; }
+
+  /* MOBILE */
+  @media (max-width: 640px) {
+    .header, .stats, .controls, .table-wrap { padding-left: 16px; padding-right: 16px; }
+    .stats { gap: 8px; }
+    .stat { min-width: calc(50% - 4px); }
+    .job-right { flex-wrap: wrap; gap: 6px; }
+    .search-wrap { width: 100%; }
+    .search { width: 100%; }
+    .why-fit { max-width: 100%; }
+    .actions { flex-direction: column; align-items: stretch; }
+    .btn { text-align: center; }
+    .source-link { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Job Search — Command Center</h1>
+  <div class="subtitle">Arbaaz · Remote · USD / EUR / GBP only</div>
+</div>
+
+<div class="stats" id="stats">
+  <div class="stat"><div class="val" id="stat-total">—</div><div class="lbl">Total Tracked</div></div>
+  <div class="stat"><div class="val" id="stat-pending">—</div><div class="lbl">Pending Review</div></div>
+  <div class="stat highlight"><div class="val" id="stat-high">—</div><div class="lbl">High Priority</div></div>
+  <div class="stat"><div class="val" id="stat-applied-today">—</div><div class="lbl">Applied Today</div></div>
+</div>
+
+<div class="controls">
+  <div class="filters" id="filters">
+    <button class="chip active" data-filter="all">All</button>
+    <button class="chip" data-filter="high">High</button>
+    <button class="chip" data-filter="medium">Medium</button>
+    <button class="chip" data-filter="low">Low</button>
+    <button class="chip" data-filter="pending">Pending</button>
+    <button class="chip" data-filter="applied">Applied</button>
+    <button class="chip" data-filter="expired">Expired</button>
+  </div>
+  <div class="search-wrap">
+    <input class="search" id="search" type="text" placeholder="Search company or role…">
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div class="jobs-count" id="jobs-count"></div>
+  <div id="jobs-list"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://inmnrwfrskbtkwnkxrzy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlubW5yd2Zyc2tidGt3bmt4cnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjgyODgsImV4cCI6MjA5ODA0NDI4OH0.Oxn3obI01UHwkL41uEvaadMuRgzQbs7XCe0Qj1ansMs';
+
+let allJobs = [];
+let activeFilter = 'all';
+let searchQuery = '';
+
+async function supabaseFetch(path, options = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+      ...(options.headers || {})
+    }
+  });
+  return res;
+}
+
+async function loadJobs() {
+  const list = document.getElementById('jobs-list');
+  try {
+    const res = await supabaseFetch('/jobs?select=*&order=score.desc');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showError(`Can't connect — ${err.message || 'check Supabase setup'} (${res.status})`);
+      return;
+    }
+    allJobs = await res.json();
+    updateStats();
+    renderJobs();
+  } catch (e) {
+    showError("Can't connect — check Supabase setup or your network.");
+  }
+}
+
+function showError(msg) {
+  document.getElementById('jobs-list').innerHTML = `
+    <div class="state-msg error">
+      <div class="icon">⚠</div>
+      <h2>Connection Error</h2>
+      <p>${msg}</p>
+    </div>`;
+}
+
+function timeAgo(posted) {
+  if (!posted) return '';
+  const d = new Date(posted);
+  if (isNaN(d)) return posted;
+  const diff = Date.now() - d.getTime();
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  return `${days}d ago`;
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function updateStats() {
+  const pending = allJobs.filter(j => j.status === 'pending');
+  const highPending = pending.filter(j => j.priority === 'high');
+  const appliedToday = allJobs.filter(j => j.status === 'applied' && j.date_found === today());
+  document.getElementById('stat-total').textContent = allJobs.length;
+  document.getElementById('stat-pending').textContent = pending.length;
+  document.getElementById('stat-high').textContent = highPending.length;
+  document.getElementById('stat-applied-today').textContent = appliedToday.length;
+}
+
+function filterJobs() {
+  return allJobs.filter(job => {
+    const matchFilter = (() => {
+      if (activeFilter === 'all') return true;
+      if (activeFilter === 'high') return job.priority === 'high';
+      if (activeFilter === 'medium') return job.priority === 'medium';
+      if (activeFilter === 'low') return job.priority === 'low';
+      if (activeFilter === 'pending') return job.status === 'pending';
+      if (activeFilter === 'applied') return job.status === 'applied';
+      if (activeFilter === 'expired') return job.status === 'expired';
+      return true;
+    })();
+    if (!matchFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return (job.role_title || '').toLowerCase().includes(q) ||
+             (job.company || '').toLowerCase().includes(q);
+    }
+    return true;
+  });
+}
+
+function renderJobs() {
+  const list = document.getElementById('jobs-list');
+  const jobs = filterJobs();
+  document.getElementById('jobs-count').textContent = `${jobs.length} job${jobs.length !== 1 ? 's' : ''}`;
+
+  if (allJobs.length === 0) {
+    list.innerHTML = `
+      <div class="state-msg">
+        <div class="icon">📭</div>
+        <h2>No jobs yet</h2>
+        <p>Run the Routine to populate this dashboard.</p>
+      </div>`;
+    return;
+  }
+
+  if (jobs.length === 0) {
+    list.innerHTML = `
+      <div class="state-msg">
+        <div class="icon">🔍</div>
+        <h2>No matches</h2>
+        <p>Try a different filter or search term.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = jobs.map(job => renderJob(job)).join('');
+
+  // attach toggle listeners
+  list.querySelectorAll('.job-header').forEach(el => {
+    el.addEventListener('click', () => {
+      const row = el.closest('.job');
+      row.classList.toggle('expanded');
+    });
+  });
+
+  // action buttons
+  list.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if (action === 'open') return; // handled by href
+      await updateStatus(id, action === 'apply' ? 'applied' : 'skipped');
+    });
+  });
+}
+
+function renderJob(job) {
+  const pri = (job.priority || 'low').toLowerCase();
+  const st = job.status || 'pending';
+  const dimClass = (st === 'applied' || st === 'skipped') ? st : '';
+  const scoreClass = pri === 'high' ? 'high' : pri === 'medium' ? 'medium' : '';
+
+  const matchedTags = (job.skills_matched || []).slice(0, 6).map(s =>
+    `<span class="skill-tag matched">${esc(s)}</span>`).join('');
+  const missingTags = (job.skills_missing || []).slice(0, 4).map(s =>
+    `<span class="skill-tag missing">− ${esc(s)}</span>`).join('');
+
+  const statusBadge = st !== 'pending'
+    ? `<span class="status-tag ${st}">${st}</span>` : '';
+
+  const resumeSection = job.tailored_resume
+    ? `<div class="detail-section">
+        <div class="detail-label">Tailored Resume</div>
+        <div class="detail-content">${esc(job.tailored_resume)}</div>
+       </div>` : '';
+
+  const resumeLink = job.tailored_resume_link
+    ? `<a class="btn" href="${esc(job.tailored_resume_link)}" target="_blank" rel="noopener">Download Resume ↗</a>` : '';
+
+  const answersSection = job.draft_answers
+    ? `<div class="detail-section">
+        <div class="detail-label">Draft Answers</div>
+        <div class="detail-content">${esc(job.draft_answers)}</div>
+       </div>` : '';
+
+  const notesSection = job.notes
+    ? `<div class="detail-section">
+        <div class="detail-label">⚠ Notes / Needs Your Input</div>
+        <div class="detail-content notes">${esc(job.notes)}</div>
+       </div>` : '';
+
+  const applyBtn = st === 'pending' || st === 'skipped'
+    ? `<button class="btn success" data-action="apply" data-id="${esc(job.id)}">Mark Applied</button>` : '';
+  const skipBtn = st === 'pending'
+    ? `<button class="btn danger" data-action="skip" data-id="${esc(job.id)}">Skip</button>` : '';
+
+  return `
+  <div class="job ${dimClass}" id="job-${esc(job.id)}">
+    <div class="priority-bar ${pri}"></div>
+    <div class="job-header">
+      <div class="job-main">
+        <div class="job-title">${esc(job.role_title || '—')} <span style="color:var(--muted);font-weight:400">@ ${esc(job.company || '—')}</span></div>
+        <div class="job-meta">${esc(job.source || '')}${job.posted ? ' · ' + timeAgo(job.posted) : ''}${job.date_found ? ' · found ' + job.date_found : ''}</div>
+        ${job.why_it_fits ? `<div class="why-fit">${esc(job.why_it_fits)}</div>` : ''}
+      </div>
+      <div class="job-right">
+        ${statusBadge}
+        <span class="priority-tag ${pri}">${pri}</span>
+        <span class="score-badge ${scoreClass}">${job.score ?? '—'}</span>
+      </div>
+    </div>
+    ${(matchedTags || missingTags) ? `<div class="skill-tags">${matchedTags}${missingTags}</div>` : ''}
+    <div class="job-detail">
+      ${job.score_breakdown ? `<div class="score-breakdown">Score: ${esc(job.score_breakdown)}</div>` : ''}
+      ${resumeSection}
+      ${answersSection}
+      ${notesSection}
+      <div class="actions">
+        ${job.job_link ? `<a class="btn primary" href="${esc(job.job_link)}" target="_blank" rel="noopener">Open Job Listing ↗</a>` : ''}
+        ${applyBtn}
+        ${skipBtn}
+        ${resumeLink}
+        <span class="source-link">${esc(job.source || '')}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function updateStatus(id, status) {
+  const btn = document.querySelector(`[data-id="${id}"]`);
+  if (btn) btn.disabled = true;
+
+  const res = await supabaseFetch(`/jobs?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+
+  if (res.ok) {
+    const job = allJobs.find(j => j.id === id);
+    if (job) job.status = status;
+    updateStats();
+    renderJobs();
+  } else {
+    if (btn) btn.disabled = false;
+    alert('Failed to update status — check connection.');
+  }
+}
+
+// Filter chips
+document.getElementById('filters').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  activeFilter = chip.dataset.filter;
+  renderJobs();
+});
+
+// Search
+document.getElementById('search').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+  renderJobs();
+});
+
+loadJobs();
+</script>
+</body>
+</html>
