@@ -61,6 +61,7 @@ Response fields: `id`, `title`, `company_name`, `url`, `publication_date`, `desc
 
 ### Source B — We Work Remotely (RSS)
 Fetch all of these RSS feeds:
+- `https://weworkremotely.com/remote-jobs.rss` (main feed — catches cross-category listings)
 - `https://weworkremotely.com/categories/remote-programming-jobs.rss`
 - `https://weworkremotely.com/categories/remote-design-jobs.rss`
 - `https://weworkremotely.com/categories/remote-product-jobs.rss`
@@ -77,6 +78,8 @@ URL pattern: `https://jobicy.com/api/v2/remote-jobs?industry=INDUSTRY&tag=TAG&co
 
 Use these industry values: `engineering`, `design`, `product-management`
 
+**Note:** If any of these return 400, fall back to `tag` parameter instead: `?tag=developer`, `?tag=designer`, `?tag=product+manager`. The `industry` and `tag` params are mutually exclusive in Jobicy's API.
+
 Freshness rule: **Always add 6 hours to the posted time before scoring recency.** Jobicy's stated delay.
 
 Hard limit: **Do not query Jobicy more than once per calendar day (PKT).** If the run is triggered more than once today for any reason, skip Jobicy on the second run and note it in the summary.
@@ -88,18 +91,25 @@ URL: `https://remoteok.com/api`
 
 **Critical:** The first element of the returned JSON array is a metadata object (not a job) — always skip index 0. Start processing from index 1.
 
-Add header `User-Agent: arbaaz-job-search/1.0` to avoid 403s.
+**Must use PowerShell (not curl/Python) on Windows** — the API returns 403 without a User-Agent header, and Python may not be available. Use:
+```powershell
+$r = Invoke-RestMethod "https://remoteok.com/api" -Headers @{'User-Agent'='arbaaz-job-search/1.0'}
+$jobs = $r[1..($r.Count-1)]
+```
 
 Freshness rule: No stated delay — use `date` field as-is.
 
 Response fields (per job): `id`, `position`, `company`, `tags`, `description`, `url`, `date`, `salary_min`, `salary_max`
 
+Note: RemoteOK mixes many non-tech jobs in its feed. Filter aggressively by title and tags against the 11 role targets before scoring.
+
 ### Source E — Himalayas
-URL: `https://himalayas.app/api/jobs?limit=50&page=1`
+Primary URL: `https://himalayas.app/api/jobs?limit=50&page=1`
+Fallback URL: `https://himalayas.app/jobs?format=json&limit=50`
 
-Also try: `https://himalayas.app/api/jobs?limit=50&page=2` for second page if first returns 50 results.
+**Note:** The `/api/jobs` endpoint returns 404 as of 2026-06-26 — try the fallback URL. If both return errors, skip Himalayas for that run and note it in the summary. Do not stop the whole run.
 
-Response fields: `id`, `title`, `company.name`, `applicationUrl` (use this as job_link), `description`, `publishedAt`, `salary`, `location`
+Response fields (when available): `id`, `title`, `company.name`, `applicationUrl` (use this as job_link), `description`, `publishedAt`, `salary`, `location`
 
 Freshness rule: No stated delay — use `publishedAt` as-is.
 
